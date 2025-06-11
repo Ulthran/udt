@@ -30,13 +30,25 @@ async function parseWithAI(text) {
     // fallback simple parser
     return [{ event: 'raw', details: text }];
   }
-  const prompt = `Extract ultimate frisbee events from the following sentence. For each event return a short description. If no event, return \"none\".\nSentence: ${text}`;
+  const prompt = `From the sentence below identify any ultimate frisbee statistics. ` +
+    `Return only a JSON array of objects each with \"player\" and \"stat\" (` +
+    `score, assist, block or turnover). If no stats are present return [].\n` +
+    `Sentence: ${text}`;
   const resp = await openai.completions.create({
     model: 'text-davinci-003',
     prompt,
-    max_tokens: 60
+    max_tokens: 100,
+    temperature: 0
   });
   const resultText = resp.choices[0].text.trim();
+  try {
+    const items = JSON.parse(resultText);
+    if (Array.isArray(items)) {
+      return items.map(it => ({ event: it.stat, details: it.player }));
+    }
+  } catch (err) {
+    console.error('AI parse error', err);
+  }
   return [{ event: 'ai', details: resultText }];
 }
 
