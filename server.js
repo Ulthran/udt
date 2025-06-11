@@ -1,6 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
@@ -22,8 +22,7 @@ const csvWriter = createCsvWriter({
 
 let openai;
 if (process.env.OPENAI_API_KEY) {
-  const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
-  openai = new OpenAIApi(configuration);
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
 async function parseWithAI(text) {
@@ -32,12 +31,12 @@ async function parseWithAI(text) {
     return [{ event: 'raw', details: text }];
   }
   const prompt = `Extract ultimate frisbee events from the following sentence. For each event return a short description. If no event, return \"none\".\nSentence: ${text}`;
-  const resp = await openai.createCompletion({
+  const resp = await openai.completions.create({
     model: 'text-davinci-003',
     prompt,
     max_tokens: 60
   });
-  const resultText = resp.data.choices[0].text.trim();
+  const resultText = resp.choices[0].text.trim();
   return [{ event: 'ai', details: resultText }];
 }
 
