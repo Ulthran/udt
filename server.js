@@ -6,11 +6,19 @@ const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
 // Load glossary of common ultimate frisbee terms if available
-const glossaryPath = path.join(__dirname, 'glossary.txt');
-let glossary = '';
+const glossaryPath = path.join(__dirname, 'glossary.json');
+let glossaryEntries = [];
 if (fs.existsSync(glossaryPath)) {
-  glossary = fs.readFileSync(glossaryPath, 'utf8').trim();
-  console.log(`Loaded glossary from ${glossaryPath}`);
+  try {
+    const raw = JSON.parse(fs.readFileSync(glossaryPath, 'utf8'));
+    glossaryEntries = Object.entries(raw).map(([term, def]) => ({
+      term: term.toLowerCase(),
+      line: `${term} - ${def}`
+    }));
+    console.log(`Loaded glossary from ${glossaryPath} with ${glossaryEntries.length} entries`);
+  } catch (err) {
+    console.error('Failed to parse glossary.json', err);
+  }
 }
 
 const app = express();
@@ -57,10 +65,19 @@ async function parseWithAI(text) {
     // fallback simple parser
     return [{ event: 'raw', details: text }];
   }
+  let glossaryText = '';
+  if (glossaryEntries.length) {
+    const t = text.toLowerCase();
+    const matched = glossaryEntries.filter(e => new RegExp(`\\b${e.term}\\b`, 'i').test(t)).map(e => e.line);
+    if (matched.length) {
+      glossaryText = `Glossary:\n${matched.join('\n')}\n`;
+    }
+  }
+
   const prompt = `From the sentence below identify any ultimate frisbee statistics.` +
     ` Return only a JSON array of objects each with "player" and "stat" (` +
     `score, assist, block or turnover). If no stats are present return [].\n` +
-    (glossary ? `Glossary:\n${glossary}\n` : '') +
+    glossaryText +
     `Return only the JSON array without any extra text.\n` +
     `Sentence: ${text}`;
   console.log('Sending prompt to OpenAI:', prompt);

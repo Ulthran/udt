@@ -1,0 +1,14 @@
+{
+  "assist": "the pass that directly leads to a score",
+  "block": "a defensive play that stops a pass",
+  "dump": "a short reset pass used to keep possession",
+  "huck": "a long throw downfield",
+  "pull": "the throw that begins each point",
+  "swing": "a lateral pass across the field",
+  "stall": "a violation for holding the disc too long",
+  "turnover": "when the offense loses possession due to a drop, block or throwaway",
+  "layout": "diving for the disc on offense or defense",
+  "handler": "a primary thrower who usually stays in the backfield",
+  "cutter": "a player making upfield cuts to receive passes",
+  "force": "the direction the marker tries to make the thrower release"
+}
