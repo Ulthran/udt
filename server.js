@@ -74,12 +74,12 @@ async function parseWithAI(text) {
     }
   }
 
-  const prompt = `From the sentence below identify any ultimate frisbee statistics.` +
+  const prompt = `From the paragraph below dictating an ultimate frisbee game, extract scores, assists, blocks, and turns.` +
     ` Return only a JSON array of objects each with "player" and "stat" (` +
     `score, assist, block or turnover). If no stats are present return [].\n` +
     glossaryText +
     `Return only the JSON array without any extra text.\n` +
-    `Sentence: ${text}`;
+    `Dictation: ${text}`;
   console.log('Sending prompt to OpenAI:', prompt);
   const resp = await openai.completions.create({
     model: 'gpt-4.1-nano',
