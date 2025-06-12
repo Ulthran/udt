@@ -28,8 +28,9 @@ node server.js
 
 * Click **Start Voice** to begin recording using the browser's speech recognition (Web Speech API). Once you're done speaking, click **Stop Voice**.
 * You can also type directly into the text area.
-* Click **Send** to send the text to the server. The server will attempt to parse events with OpenAI if an API key is provided, falling back to storing the raw text otherwise.
+* Click **Send** to send the text to the server. The server will attempt to parse events with OpenAI if an API key is provided. If parsing fails for any reason, the text is stored as a raw event instead.
 * Parsed events are appended to `game.csv` in the project root.
+* Every piece of text you submit is also recorded in `transcript.txt` so you can keep a full log of the game.
 
 ### Glossary
 
