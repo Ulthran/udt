@@ -5,6 +5,14 @@ const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
+// Load glossary of common ultimate frisbee terms if available
+const glossaryPath = path.join(__dirname, 'glossary.txt');
+let glossary = '';
+if (fs.existsSync(glossaryPath)) {
+  glossary = fs.readFileSync(glossaryPath, 'utf8').trim();
+  console.log(`Loaded glossary from ${glossaryPath}`);
+}
+
 const app = express();
 app.use(express.static('public'));
 app.use(bodyParser.json());
@@ -49,9 +57,10 @@ async function parseWithAI(text) {
     // fallback simple parser
     return [{ event: 'raw', details: text }];
   }
-  const prompt = `From the sentence below identify any ultimate frisbee statistics. ` +
-    `Return only a JSON array of objects each with \"player\" and \"stat\" (` +
+  const prompt = `From the sentence below identify any ultimate frisbee statistics.` +
+    ` Return only a JSON array of objects each with "player" and "stat" (` +
     `score, assist, block or turnover). If no stats are present return [].\n` +
+    (glossary ? `Glossary:\n${glossary}\n` : '') +
     `Sentence: ${text}`;
   console.log('Sending prompt to OpenAI:', prompt);
   const resp = await openai.completions.create({

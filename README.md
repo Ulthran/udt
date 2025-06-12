@@ -30,3 +30,9 @@ node server.js
 * You can also type directly into the text area.
 * Click **Send** to send the text to the server. The server will attempt to parse events with OpenAI if an API key is provided, falling back to storing the raw text otherwise.
 * Parsed events are appended to `game.csv` in the project root.
+
+### Glossary
+
+A small glossary of common ultimate frisbee terms is provided in `glossary.txt`.
+If the file exists, its contents are included in prompts sent to the language
+model to improve parsing accuracy.
