@@ -81,14 +81,15 @@ async function parseWithAI(text) {
     `Return only the JSON array without any extra text.\n` +
     `Dictation: ${text}`;
   console.log('Sending prompt to OpenAI:', prompt);
-  const resp = await openai.completions.create({
-    model: 'gpt-4.1-nano',
-    prompt,
+
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-3.5-turbo',
+    messages: [{ role: 'user', content: prompt }],
     max_tokens: 100,
     temperature: 0
   });
   console.log('OpenAI raw response:', resp);
-  const resultText = resp.choices[0].text.trim();
+  const resultText = resp.choices[0].message.content.trim();
   try {
     const items = JSON.parse(resultText);
     if (Array.isArray(items)) {
