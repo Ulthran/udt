@@ -33,6 +33,7 @@ node server.js
 
 ### Glossary
 
-A small glossary of common ultimate frisbee terms is provided in `glossary.txt`.
-If the file exists, its contents are included in prompts sent to the language
-model to improve parsing accuracy.
+A small glossary of common ultimate frisbee terms is provided in `glossary.json`.
+When the server processes a sentence it scans the text for any glossary terms
+and only includes matching definitions in prompts sent to the language model.
+This keeps prompts concise while still improving parsing accuracy.
