@@ -37,3 +37,29 @@ A small glossary of common ultimate frisbee terms is provided in `glossary.json`
 When the server processes a sentence it scans the text for any glossary terms
 and only includes matching definitions in prompts sent to the language model.
 This keeps prompts concise while still improving parsing accuracy.
+
+## Yahoo Price Lookup
+
+The repository also includes a small helper module `yahoo_prices.py` for
+retrieving historical prices from Yahoo Finance. It expects a dictionary mapping
+`datetime.date` objects to sets of tickers and returns a nested dictionary of
+closing prices for each requested date. Prices are fetched with
+`yfinance` using one request per day that includes all tickers needed on that
+date.
+
+Example usage:
+
+```python
+import datetime
+from yahoo_prices import fetch_prices
+
+dates = {datetime.date(2023, 1, 3): {"AAPL", "MSFT"}}
+prices = fetch_prices(dates)
+print(prices)
+```
+
+Install `yfinance` if needed:
+
+```bash
+pip install yfinance
+```
