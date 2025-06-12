@@ -20,13 +20,32 @@ const csvWriter = createCsvWriter({
   append: fs.existsSync(csvPath)
 });
 
+console.log(`CSV output path: ${csvPath}`);
+
 let openai;
 if (process.env.OPENAI_API_KEY) {
   openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  console.log('OpenAI client initialized');
+} else {
+  console.log('No OpenAI API key provided; using fallback parser');
+}
+
+if (process.env.MOCK_OPENAI === '1') {
+  console.log('Using mock OpenAI implementation for testing');
+  openai = {
+    completions: {
+      create: async (opts) => {
+        console.log('Mock OpenAI received prompt:', opts.prompt);
+        return { choices: [{ text: '[{"player":"Jason","stat":"turn"}]' }] };
+      }
+    }
+  };
 }
 
 async function parseWithAI(text) {
+  console.log('parseWithAI called with:', text);
   if (!openai) {
+    console.log('OpenAI client not configured, returning raw event');
     // fallback simple parser
     return [{ event: 'raw', details: text }];
   }
@@ -34,16 +53,19 @@ async function parseWithAI(text) {
     `Return only a JSON array of objects each with \"player\" and \"stat\" (` +
     `score, assist, block or turnover). If no stats are present return [].\n` +
     `Sentence: ${text}`;
+  console.log('Sending prompt to OpenAI:', prompt);
   const resp = await openai.completions.create({
     model: 'text-davinci-003',
     prompt,
     max_tokens: 100,
     temperature: 0
   });
+  console.log('OpenAI raw response:', resp);
   const resultText = resp.choices[0].text.trim();
   try {
     const items = JSON.parse(resultText);
     if (Array.isArray(items)) {
+      console.log('Parsed events from OpenAI:', items);
       return items.map(it => ({ event: it.stat, details: it.player }));
     }
   } catch (err) {
@@ -55,8 +77,10 @@ async function parseWithAI(text) {
 app.post('/api/process', async (req, res) => {
   try {
     const { text } = req.body;
+    console.log('Received /api/process request with text:', text);
     const events = await parseWithAI(text);
     const rows = events.map(e => ({ timestamp: new Date().toISOString(), event: e.event, details: e.details }));
+    console.log('Writing rows to CSV:', rows);
     await csvWriter.writeRecords(rows);
     res.json({ status: 'ok', events: rows });
   } catch (err) {
