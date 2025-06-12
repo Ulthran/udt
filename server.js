@@ -36,6 +36,9 @@ const csvWriter = createCsvWriter({
   append: fs.existsSync(csvPath)
 });
 
+// Path for storing a plain text transcript of all submitted statements
+const transcriptPath = path.join(__dirname, 'transcript.txt');
+
 console.log(`CSV output path: ${csvPath}`);
 
 let openai;
@@ -98,14 +101,20 @@ async function parseWithAI(text) {
     }
   } catch (err) {
     console.error('AI parse error', err);
+    // fall through to returning raw event
   }
-  return [{ event: 'ai', details: resultText }];
+  // If parsing fails, keep the original text as a raw event
+  return [{ event: 'raw', details: text }];
 }
 
 app.post('/api/process', async (req, res) => {
   try {
     const { text } = req.body;
     console.log('Received /api/process request with text:', text);
+    await fs.promises.appendFile(
+      transcriptPath,
+      `${new Date().toISOString()} ${text}\n`
+    );
     const events = await parseWithAI(text);
     const rows = events.map(e => ({ timestamp: new Date().toISOString(), event: e.event, details: e.details }));
     console.log('Writing rows to CSV:', rows);
