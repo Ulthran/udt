@@ -20,14 +20,18 @@ def fetch_prices(date_to_tickers: Dict[datetime.date, Iterable[str]]) -> Dict[da
         if not tickers:
             continue
 
-        data = yf.download(
-            tickers,
-            start=day,
-            end=day + datetime.timedelta(days=1),
-            group_by="ticker",
-            progress=False,
-            threads=False,
-        )
+        try:
+            data = yf.download(
+                tickers,
+                start=day,
+                end=day + datetime.timedelta(days=1),
+                group_by="ticker",
+                progress=False,
+                threads=False,
+            )
+        except Exception as e:
+            logging.error(f"Failed to fetch data for {day} and tickers {tickers}: {e}")
+            continue
 
         prices: Dict[str, float] = {}
 
