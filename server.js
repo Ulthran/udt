@@ -61,10 +61,11 @@ async function parseWithAI(text) {
     ` Return only a JSON array of objects each with "player" and "stat" (` +
     `score, assist, block or turnover). If no stats are present return [].\n` +
     (glossary ? `Glossary:\n${glossary}\n` : '') +
+    `Return only the JSON array without any extra text.\n` +
     `Sentence: ${text}`;
   console.log('Sending prompt to OpenAI:', prompt);
   const resp = await openai.completions.create({
-    model: 'text-davinci-003',
+    model: 'gpt-4.1-nano',
     prompt,
     max_tokens: 100,
     temperature: 0
