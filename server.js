@@ -25,7 +25,8 @@ const app = express();
 app.use(express.static('public'));
 app.use(bodyParser.json());
 
-const csvPath = path.join(__dirname, 'game.csv');
+// Store the CSV inside the public folder so it can be fetched by the browser
+const csvPath = path.join(__dirname, 'public', 'game.csv');
 const csvWriter = createCsvWriter({
   path: csvPath,
   header: [
