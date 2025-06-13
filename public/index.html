@@ -13,24 +13,16 @@
   <pre id="output"></pre>
   <h2>Game Log</h2>
   <table id="stats">
-    <thead>
-      <tr>
-        <th>Player</th>
-        <th>Scores</th>
-        <th>Assists</th>
-        <th>Blocks</th>
-        <th>Turns</th>
-        <th>+/-</th>
-      </tr>
-    </thead>
+    <thead id="stats-head"></thead>
     <tbody id="stats-body"></tbody>
   </table>
   <script>
 const textArea = document.getElementById('text');
 const output = document.getElementById('output');
 const statsBody = document.getElementById('stats-body');
+const statsHead = document.getElementById('stats-head');
 
-function parseCsv(text) {
+function parseStatsCsv(text) {
   const lines = text.trim().split('\n');
   const players = {};
   for (const line of lines.slice(1)) {
@@ -45,38 +37,67 @@ function parseCsv(text) {
     if (event === 'score') players[player].score++;
     else if (event === 'assist') players[player].assist++;
     else if (event === 'block') players[player].block++;
-    else if (event === 'turn' || event === 'turnover') players[player].turn++;
+  else if (event === 'turn' || event === 'turnover') players[player].turn++;
   }
   return players;
 }
 
-function renderStats(players) {
+function parsePlayersCsv(text) {
+  const lines = text.trim().split('\n');
+  if (!lines.length) return { points: 0, data: {} };
+  const headers = lines[0].split(',').slice(1);
+  const data = {};
+  for (const line of lines.slice(1)) {
+    const parts = line.split(',');
+    const player = parts[0];
+    data[player] = parts.slice(1).map(p => p.trim());
+  }
+  return { points: headers.length, data };
+}
+
+function renderTable(lineups, stats, points) {
+  statsHead.innerHTML = '';
+  const headRow = document.createElement('tr');
+  let headHtml = '<th>Player</th>';
+  for (let i = 0; i < points; i++) {
+    headHtml += `<th>${i + 1}</th>`;
+  }
+  headHtml += '<th>Scores</th><th>Assists</th><th>Blocks</th><th>Turns</th><th>+/-</th>';
+  headRow.innerHTML = headHtml;
+  statsHead.appendChild(headRow);
+
   statsBody.innerHTML = '';
-  Object.entries(players).forEach(([name, stats]) => {
-    const pm = stats.score + stats.assist + stats.block - stats.turn;
+  const allPlayers = new Set([...Object.keys(lineups), ...Object.keys(stats)]);
+  allPlayers.forEach(name => {
+    const lineup = lineups[name] || new Array(points).fill('');
+    const s = stats[name] || { score: 0, assist: 0, block: 0, turn: 0 };
+    const pm = s.score + s.assist + s.block - s.turn;
+    const cells = lineup.map(v => `<td>${v ? '✓' : ''}</td>`).join('');
     const row = document.createElement('tr');
-    row.innerHTML = `\n      <td>${name}</td>\n      <td>${stats.score}</td>\n      <td>${stats.assist}</td>\n      <td>${stats.block}</td>\n      <td>${stats.turn}</td>\n      <td>${pm}</td>`;
+    row.innerHTML = `<td>${name}</td>${cells}<td>${s.score}</td><td>${s.assist}</td><td>${s.block}</td><td>${s.turn}</td><td>${pm}</td>`;
     statsBody.appendChild(row);
   });
 }
 
-async function fetchCsv() {
+async function fetchData() {
   try {
-    const res = await fetch('/game.csv');
-    if (!res.ok) {
-      statsBody.innerHTML = '';
-      return;
-    }
-    const text = await res.text();
-    const players = parseCsv(text);
-    renderStats(players);
+    const [gameRes, playersRes] = await Promise.all([
+      fetch('/game.csv'),
+      fetch('/players.csv')
+    ]);
+    const gameText = gameRes.ok ? await gameRes.text() : '';
+    const playersText = playersRes.ok ? await playersRes.text() : '';
+    const stats = parseStatsCsv(gameText);
+    const { points, data } = parsePlayersCsv(playersText);
+    renderTable(data, stats, points);
   } catch (err) {
     console.error('Failed to load CSV', err);
   }
 }
 
 // load CSV on page load
-fetchCsv();
+fetchData();
+
 let recognition;
 if ('webkitSpeechRecognition' in window) {
   recognition = new webkitSpeechRecognition();
@@ -100,7 +121,7 @@ document.getElementById('send').onclick = async () => {
   });
   const data = await res.json();
   output.textContent = JSON.stringify(data, null, 2);
-  await fetchCsv();
+  await fetchData();
 };
 </script>
 </body>
