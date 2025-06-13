@@ -176,7 +176,20 @@ async function parseWithAI(text) {
   console.log('OpenAI raw response:', resp);
   const resultText = resp.choices[0].message.content.trim();
   try {
-    const items = JSON.parse(resultText);
+    let jsonText = resultText;
+    // Strip Markdown code fences like ```json ... ``` if present
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```(?:json)?\n?/i, '')
+        .replace(/```\s*$/s, '')
+        .trim();
+    }
+    // Extract the first JSON array
+    const start = jsonText.indexOf('[');
+    const end = jsonText.lastIndexOf(']');
+    if (start !== -1 && end !== -1 && end > start) {
+      jsonText = jsonText.slice(start, end + 1);
+    }
+    const items = JSON.parse(jsonText);
     if (Array.isArray(items)) {
       console.log('Parsed events from OpenAI:', items);
       return items.map(it => ({ event: String(it.stat).toLowerCase(), details: it.player }));
