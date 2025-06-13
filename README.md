@@ -16,13 +16,15 @@ npm install
 export OPENAI_API_KEY=yourkey
 ```
 
-3. Start the server:
+3. Edit `team.json` to list your full roster and any nicknames.
+
+4. Start the server:
 
 ```bash
 node server.js
 ```
 
-4. Open your browser to `http://localhost:3000`.
+5. Open your browser to `http://localhost:3000`.
 
 ## Usage
 
@@ -30,6 +32,7 @@ node server.js
 * You can also type directly into the text area.
 * Click **Send** to send the text to the server. The server will attempt to parse events with OpenAI if an API key is provided. If parsing fails for any reason, the text is stored as a raw event instead.
 * Parsed events are appended to `public/game.csv` so they can be viewed in the browser.
+* Each point's lineup is stored in `public/players.csv` with a column per point.
 * The browser parses this CSV to build a table showing stats per player.
 * Every piece of text you submit is also recorded in `transcript.txt` so you can keep a full log of the game.
 

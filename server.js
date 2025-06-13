@@ -5,6 +5,30 @@ const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
+// Load team roster with nickname mapping
+const teamPath = path.join(__dirname, 'team.json');
+let canonicalNames = [];
+const nameLookup = {};
+if (fs.existsSync(teamPath)) {
+  try {
+    const rawTeam = JSON.parse(fs.readFileSync(teamPath, 'utf8'));
+    canonicalNames = Object.keys(rawTeam);
+    for (const [canon, nicks] of Object.entries(rawTeam)) {
+      nameLookup[canon.toLowerCase()] = canon;
+      if (Array.isArray(nicks)) {
+        for (const nick of nicks) {
+          nameLookup[nick.toLowerCase()] = canon;
+        }
+      }
+    }
+    console.log(`Loaded team roster from ${teamPath} with ${canonicalNames.length} players`);
+  } catch (err) {
+    console.error('Failed to parse team.json', err);
+  }
+} else {
+  console.warn('team.json not found; name normalization disabled');
+}
+
 // Load glossary of common ultimate frisbee terms if available
 const glossaryPath = path.join(__dirname, 'glossary.json');
 let glossaryEntries = [];
@@ -39,6 +63,61 @@ const csvWriter = createCsvWriter({
 
 // Path for storing a plain text transcript of all submitted statements
 const transcriptPath = path.join(__dirname, 'transcript.txt');
+// CSV tracking which players were on which points
+const playersCsvPath = path.join(__dirname, 'public', 'players.csv');
+let pointNumber = 0;
+
+function initPlayersCsv() {
+  let headers = ['Player'];
+  const rows = {};
+  if (fs.existsSync(playersCsvPath)) {
+    const lines = fs.readFileSync(playersCsvPath, 'utf8').trim().split('\n');
+    if (lines.length) {
+      headers = lines[0].split(',');
+      pointNumber = headers.length - 1;
+      for (const line of lines.slice(1)) {
+        const parts = line.split(',');
+        rows[parts[0]] = parts.slice(1);
+      }
+    }
+  }
+
+  canonicalNames.forEach(name => {
+    if (!rows[name]) rows[name] = new Array(pointNumber).fill('');
+  });
+
+  const outLines = [headers.join(',')];
+  for (const p of canonicalNames) {
+    outLines.push([p, ...(rows[p] || [])].join(','));
+  }
+  fs.writeFileSync(playersCsvPath, outLines.join('\n'));
+}
+
+function recordLineup(names) {
+  pointNumber += 1;
+  const lines = fs.readFileSync(playersCsvPath, 'utf8').trim().split('\n');
+  const headers = lines[0].split(',');
+  headers.push(pointNumber.toString());
+  const roster = new Set(names.map(normalizeName));
+  const newLines = [headers.join(',')];
+  for (const line of lines.slice(1)) {
+    const parts = line.split(',');
+    const player = parts[0];
+    const cols = parts.slice(1);
+    cols.push(roster.has(player) ? '1' : '');
+    newLines.push([player, ...cols].join(','));
+  }
+  fs.writeFileSync(playersCsvPath, newLines.join('\n'));
+}
+
+function normalizeName(name) {
+  if (!name) return name;
+  const key = name.toLowerCase().trim();
+  return nameLookup[key] || name;
+}
+
+// initialise players.csv on startup
+initPlayersCsv();
 
 console.log(`CSV output path: ${csvPath}`);
 
@@ -79,8 +158,10 @@ async function parseWithAI(text) {
   }
 
   const prompt = `From the paragraph below dictating an ultimate frisbee game, extract scores, assists, blocks, and turns.` +
+    ` If a sentence lists the lineup for a point, return one object with "stat" set to "line" and` +
+    ` "player" containing a comma separated list of the player names.` +
     ` Return only a JSON array of objects each with "player" and "stat" (` +
-    `score, assist, block or turnover). If no stats are present return [].\n` +
+    `score, assist, block, turnover, or line). If no stats are present return [].\n` +
     glossaryText +
     `Return only the JSON array without any extra text.\n` +
     `Dictation: ${text}`;
@@ -98,7 +179,7 @@ async function parseWithAI(text) {
     const items = JSON.parse(resultText);
     if (Array.isArray(items)) {
       console.log('Parsed events from OpenAI:', items);
-      return items.map(it => ({ event: it.stat, details: it.player }));
+      return items.map(it => ({ event: String(it.stat).toLowerCase(), details: it.player }));
     }
   } catch (err) {
     console.error('AI parse error', err);
@@ -117,9 +198,31 @@ app.post('/api/process', async (req, res) => {
       `${new Date().toISOString()} ${text}\n`
     );
     const events = await parseWithAI(text);
-    const rows = events.map(e => ({ timestamp: new Date().toISOString(), event: e.event, details: e.details }));
+    const rows = [];
+    for (const e of events) {
+      if (e.event === 'line') {
+        const names = String(e.details)
+          .split(/[,;]+/)
+          .map(n => n.trim())
+          .filter(Boolean);
+        recordLineup(names);
+        rows.push({
+          timestamp: new Date().toISOString(),
+          event: 'line',
+          details: names.map(normalizeName).join('; ')
+        });
+      } else {
+        rows.push({
+          timestamp: new Date().toISOString(),
+          event: e.event,
+          details: normalizeName(e.details)
+        });
+      }
+    }
     console.log('Writing rows to CSV:', rows);
-    await csvWriter.writeRecords(rows);
+    if (rows.length) {
+      await csvWriter.writeRecords(rows);
+    }
     res.json({ status: 'ok', events: rows });
   } catch (err) {
     console.error(err);
