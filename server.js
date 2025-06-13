@@ -164,7 +164,7 @@ async function parseWithAI(text) {
     `score, assist, block, turnover, or line). If no stats are present return [].\n` +
     glossaryText +
     `Return only the JSON array without any extra text.\n` +
-    `Dictation: ${text}`;
+    `Dictation: """${text}"""`;
   console.log('Sending prompt to OpenAI:', prompt);
 
   const resp = await openai.chat.completions.create({
@@ -174,6 +174,7 @@ async function parseWithAI(text) {
     temperature: 0
   });
   console.log('OpenAI raw response:', resp);
+  console.log('OpenAI raw response text:', resp.choices[0].message.content);
   const resultText = resp.choices[0].message.content.trim();
   try {
     let jsonText = resultText;
