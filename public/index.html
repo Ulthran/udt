@@ -11,9 +11,72 @@
   <button id="stop">Stop Voice</button>
   <button id="send">Send</button>
   <pre id="output"></pre>
-<script>
+  <h2>Game Log</h2>
+  <table id="stats">
+    <thead>
+      <tr>
+        <th>Player</th>
+        <th>Scores</th>
+        <th>Assists</th>
+        <th>Blocks</th>
+        <th>Turns</th>
+        <th>+/-</th>
+      </tr>
+    </thead>
+    <tbody id="stats-body"></tbody>
+  </table>
+  <script>
 const textArea = document.getElementById('text');
 const output = document.getElementById('output');
+const statsBody = document.getElementById('stats-body');
+
+function parseCsv(text) {
+  const lines = text.trim().split('\n');
+  const players = {};
+  for (const line of lines.slice(1)) {
+    const parts = line.split(',');
+    if (parts.length < 3) continue;
+    const event = parts[1].trim().toLowerCase();
+    const player = parts[2].trim();
+    if (!player) continue;
+    if (!players[player]) {
+      players[player] = { score: 0, assist: 0, block: 0, turn: 0 };
+    }
+    if (event === 'score') players[player].score++;
+    else if (event === 'assist') players[player].assist++;
+    else if (event === 'block') players[player].block++;
+    else if (event === 'turn' || event === 'turnover') players[player].turn++;
+  }
+  return players;
+}
+
+function renderStats(players) {
+  statsBody.innerHTML = '';
+  Object.entries(players).forEach(([name, stats]) => {
+    const pm = stats.score + stats.assist + stats.block - stats.turn;
+    const row = document.createElement('tr');
+    row.innerHTML = `\n      <td>${name}</td>\n      <td>${stats.score}</td>\n      <td>${stats.assist}</td>\n      <td>${stats.block}</td>\n      <td>${stats.turn}</td>\n      <td>${pm}</td>`;
+    statsBody.appendChild(row);
+  });
+}
+
+async function fetchCsv() {
+  try {
+    const res = await fetch('/game.csv');
+    if (!res.ok) {
+      statsBody.innerHTML = '';
+      return;
+    }
+    const text = await res.text();
+    const players = parseCsv(text);
+    renderStats(players);
+  } catch (err) {
+    console.error('Failed to load CSV', err);
+  }
+}
+
+// load CSV on page load
+fetchCsv();
 let recognition;
 if ('webkitSpeechRecognition' in window) {
   recognition = new webkitSpeechRecognition();
@@ -37,6 +100,7 @@ document.getElementById('send').onclick = async () => {
   });
   const data = await res.json();
   output.textContent = JSON.stringify(data, null, 2);
+  await fetchCsv();
 };
 </script>
 </body>
