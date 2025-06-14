@@ -176,8 +176,9 @@ async function parseWithAI(text) {
   const resp = await openai.chat.completions.create({
     model: 'gpt-4.1-mini',
     messages: [{ role: 'user', content: prompt }],
-    max_tokens: 100,
-    temperature: 0
+    max_tokens: 256,
+    temperature: 0,
+    response_format: { type: 'json_object' }
   });
   console.log('OpenAI raw response:', resp);
   console.log('OpenAI raw response text:', resp.choices[0].message.content);
