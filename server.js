@@ -132,10 +132,16 @@ if (process.env.OPENAI_API_KEY) {
 if (process.env.MOCK_OPENAI === '1') {
   console.log('Using mock OpenAI implementation for testing');
   openai = {
-    completions: {
-      create: async (opts) => {
-        console.log('Mock OpenAI received prompt:', opts.prompt);
-        return { choices: [{ text: '[{"player":"Jason","stat":"turn"}]' }] };
+    chat: {
+      completions: {
+        create: async (opts) => {
+          console.log('Mock OpenAI received prompt:', opts.messages[0].content);
+          const mock = {
+            players: ["Jason"],
+            events: [{ player: "Jason", type: "turn" }]
+          };
+          return { choices: [{ message: { content: JSON.stringify(mock) } }] };
+        }
       }
     }
   };
@@ -146,7 +152,7 @@ async function parseWithAI(text) {
   if (!openai) {
     console.log('OpenAI client not configured, returning raw event');
     // fallback simple parser
-    return [{ event: 'raw', details: text }];
+    return { players: [], events: [{ player: text, type: 'raw' }] };
   }
   let glossaryText = '';
   if (glossaryEntries.length) {
@@ -158,12 +164,12 @@ async function parseWithAI(text) {
   }
 
   const prompt = `From the paragraph below dictating an ultimate frisbee game, extract scores, assists, blocks, and turns.` +
-    ` If a sentence lists the lineup for a point, return one object with "stat" set to "line" and` +
-    ` "player" containing a comma separated list of the player names.` +
-    ` Return only a JSON array of objects each with "player" and "stat" (` +
-    `score, assist, block, turnover, or line). If no stats are present return [].\n` +
+    ` Return a JSON object with two fields:\n` +
+    `players: a list of all player names mentioned, and\n` +
+    `events: a list of objects each with \"player\" and \"type\" (score, assist, block, or turnover).` +
+    ` Ignore lineup sentences except for collecting player names. If no stats are present return {"players":[],"events":[]}.\n` +
     glossaryText +
-    `Return only the JSON array without any extra text.\n` +
+    `Return only the JSON object without any extra text.\n` +
     `Dictation: """${text}"""`;
   console.log('Sending prompt to OpenAI:', prompt);
 
@@ -184,23 +190,20 @@ async function parseWithAI(text) {
         .replace(/```\s*$/s, '')
         .trim();
     }
-    // Extract the first JSON array
-    const start = jsonText.indexOf('[');
-    const end = jsonText.lastIndexOf(']');
-    if (start !== -1 && end !== -1 && end > start) {
-      jsonText = jsonText.slice(start, end + 1);
-    }
-    const items = JSON.parse(jsonText);
-    if (Array.isArray(items)) {
-      console.log('Parsed events from OpenAI:', items);
-      return items.map(it => ({ event: String(it.stat).toLowerCase(), details: it.player }));
+    const obj = JSON.parse(jsonText);
+    if (obj && Array.isArray(obj.events) && Array.isArray(obj.players)) {
+      console.log('Parsed events from OpenAI:', obj);
+      return {
+        players: obj.players,
+        events: obj.events.map(it => ({ player: it.player, type: String(it.type).toLowerCase() }))
+      };
     }
   } catch (err) {
     console.error('AI parse error', err);
     // fall through to returning raw event
   }
   // If parsing fails, keep the original text as a raw event
-  return [{ event: 'raw', details: text }];
+  return { players: [], events: [{ player: text, type: 'raw' }] };
 }
 
 app.post('/api/process', async (req, res) => {
@@ -211,14 +214,16 @@ app.post('/api/process', async (req, res) => {
       transcriptPath,
       `${new Date().toISOString()} ${text}\n`
     );
-    const events = await parseWithAI(text);
+    const parsed = await parseWithAI(text);
     const rows = [];
-    for (const e of events) {
-      if (e.event === 'line') {
-        const names = String(e.details)
+    const playerSet = new Set(parsed.players.map(normalizeName));
+    for (const e of parsed.events) {
+      if (e.type === 'line') {
+        const names = String(e.player)
           .split(/[,;]+/)
           .map(n => n.trim())
           .filter(Boolean);
+        names.forEach(n => playerSet.add(normalizeName(n)));
         recordLineup(names);
         rows.push({
           timestamp: new Date().toISOString(),
@@ -226,10 +231,11 @@ app.post('/api/process', async (req, res) => {
           details: names.map(normalizeName).join('; ')
         });
       } else {
+        playerSet.add(normalizeName(e.player));
         rows.push({
           timestamp: new Date().toISOString(),
-          event: e.event,
-          details: normalizeName(e.details)
+          event: e.type,
+          details: normalizeName(e.player)
         });
       }
     }
@@ -237,7 +243,7 @@ app.post('/api/process', async (req, res) => {
     if (rows.length) {
       await csvWriter.writeRecords(rows);
     }
-    res.json({ status: 'ok', events: rows });
+    res.json({ players: Array.from(playerSet), events: parsed.events.map(e => ({ player: normalizeName(e.player), type: e.type })) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'processing failed' });
