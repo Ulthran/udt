@@ -136,7 +136,7 @@ if (process.env.OPENAI_API_KEY) {
     `Use the prior context to resolve names or actions. ` +
     `Return JSON with players mentioned and events (player and type). ` +
     `Valid event types are score, assist, block, turn, pull, line.` +
-    ` If no events are present return {"players":[],"events":[]}.` +
+    ` If no events are present return {{"players":[],"events":[]}}.` +
     `\n{glossary}\n{history}\nSnippet: "{input}"`;
   const prompt = new PromptTemplate({ template, inputVariables: ['history', 'input', 'glossary'] });
   parserChain = new LLMChain({ llm, memory, prompt });
