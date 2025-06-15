@@ -131,7 +131,12 @@ if (process.env.OPENAI_API_KEY) {
     modelName: 'gpt-4.1-mini',
     temperature: 0
   });
-  const memory = new BufferWindowMemory({ k: 8, returnMessages: true, memoryKey: 'history' });
+  const memory = new BufferWindowMemory({
+    k: 8,
+    returnMessages: true,
+    memoryKey: 'history',
+    inputKey: 'input'
+  });
   const template = `You are keeping stats for an ultimate frisbee game one snippet at a time. ` +
     `Use the prior context to resolve names or actions. ` +
     `Return JSON with players mentioned and events (player and type). ` +
