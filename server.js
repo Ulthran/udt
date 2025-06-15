@@ -1,6 +1,9 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const OpenAI = require('openai');
+const { ChatOpenAI } = require('@langchain/openai');
+const { LLMChain } = require('langchain/chains');
+const { BufferWindowMemory } = require('langchain/memory');
+const { PromptTemplate } = require('@langchain/core/prompts');
 const fs = require('fs');
 const path = require('path');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
@@ -121,36 +124,38 @@ initPlayersCsv();
 
 console.log(`CSV output path: ${csvPath}`);
 
-let openai;
+let parserChain;
 if (process.env.OPENAI_API_KEY) {
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  console.log('OpenAI client initialized');
+  const llm = new ChatOpenAI({
+    openAIApiKey: process.env.OPENAI_API_KEY,
+    modelName: 'gpt-4.1-mini',
+    temperature: 0
+  });
+  const memory = new BufferWindowMemory({ k: 8, returnMessages: true, memoryKey: 'history' });
+  const template = `You are keeping stats for an ultimate frisbee game one snippet at a time. ` +
+    `Use the prior context to resolve names or actions. ` +
+    `Return JSON with players mentioned and events (player and type). ` +
+    `Valid event types are score, assist, block, turn, pull, line.` +
+    ` If no events are present return {"players":[],"events":[]}.` +
+    `\n{glossary}\n{history}\nSnippet: "{input}"`;
+  const prompt = new PromptTemplate({ template, inputVariables: ['history', 'input', 'glossary'] });
+  parserChain = new LLMChain({ llm, memory, prompt });
+  console.log('LangChain parser initialized');
 } else {
   console.log('No OpenAI API key provided; using fallback parser');
 }
 
 if (process.env.MOCK_OPENAI === '1') {
   console.log('Using mock OpenAI implementation for testing');
-  openai = {
-    chat: {
-      completions: {
-        create: async (opts) => {
-          console.log('Mock OpenAI received prompt:', opts.messages[0].content);
-          const mock = {
-            players: ["Jason"],
-            events: [{ player: "Jason", type: "turn" }]
-          };
-          return { choices: [{ message: { content: JSON.stringify(mock) } }] };
-        }
-      }
-    }
+  parserChain = {
+    call: async () => ({ text: JSON.stringify({ players: ["Jason"], events: [{ player: "Jason", type: "turn" }] }) })
   };
 }
 
 async function parseWithAI(text) {
   console.log('parseWithAI called with:', text);
-  if (!openai) {
-    console.log('OpenAI client not configured, returning raw event');
+  if (!parserChain) {
+    console.log('LLM chain not configured, returning raw event');
     // fallback simple parser
     return { players: [], events: [{ player: text, type: 'raw' }] };
   }
@@ -163,26 +168,8 @@ async function parseWithAI(text) {
     }
   }
 
-  const prompt = `From the paragraph below dictating an ultimate frisbee game, extract scores, assists, blocks, and turns.` +
-    ` Return a JSON object with two fields:\n` +
-    `players: a list of all player names mentioned, and\n` +
-    `events: a list of objects each with \"player\" and \"type\" (score, assist, block, or turnover).` +
-    ` Ignore lineup sentences except for collecting player names. If no stats are present return {"players":[],"events":[]}.\n` +
-    glossaryText +
-    `Return only the JSON object without any extra text.\n` +
-    `Dictation: """${text}"""`;
-  console.log('Sending prompt to OpenAI:', prompt);
-
-  const resp = await openai.chat.completions.create({
-    model: 'gpt-4.1-mini',
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 256,
-    temperature: 0,
-    response_format: { type: 'json_object' }
-  });
-  console.log('OpenAI raw response:', resp);
-  console.log('OpenAI raw response text:', resp.choices[0].message.content);
-  const resultText = resp.choices[0].message.content.trim();
+  const resp = await parserChain.call({ input: text, glossary: glossaryText });
+  const resultText = (resp.text || '').trim();
   try {
     let jsonText = resultText;
     // Strip Markdown code fences like ```json ... ``` if present
