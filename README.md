@@ -16,6 +16,10 @@ npm install
 export OPENAI_API_KEY=yourkey
 ```
 
+The server now uses a LangChain conversation memory to keep a short history of
+recent snippets. This helps the model maintain context as it updates the game
+state one sentence at a time.
+
 3. Edit `team.json` to list your full roster and any nicknames.
 
 4. Start the server:
